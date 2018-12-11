@@ -325,7 +325,8 @@ for i in range(6):
 
 # load power ups
 powerup_images = {}
-powerup_images['shield'] = pygame.image.load(path.join(sprite_folder, 'shield_gold.png')).convert()
+powerup_images['shield'] = pygame.image.load(path.join(sprite_folder, 'shield.png')).convert()
+powerup_images['shield'] = pygame.transform.scale(powerup_images['shield'], (32, 32))
 powerup_images['gun'] = pygame.image.load(path.join(sprite_folder, 'bolt_gold.png')).convert()
 
 
