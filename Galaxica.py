@@ -1,10 +1,15 @@
+# @Title Galaxica
+# @Author: Alex Laisney
+# @Date:   11/13/2018
+# @Email: drax@vt.edu
+#I have not given nor recieved any unauthorized help on this project - Alex Laisney
 #!/usr/bin/env python
 from __future__ import division
 import pygame
 import random
 from os import path
 
-## assets folder
+# assets folders
 sprite_folder = path.join(path.dirname(__file__), 'sprites')
 sound_folder = path.join(path.dirname(__file__), 'sounds')
 
@@ -24,11 +29,70 @@ BLUE = (0, 0, 255)
 YELLOW = (255, 255, 0)
 
 pygame.init()
-pygame.mixer.init()  ## For sound
+pygame.mixer.init()  
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Space Shooter")
+pygame.display.set_caption("Galaxica")
 clock = pygame.time.Clock()
 font_name = pygame.font.match_font('serif')
+
+# Load game images
+background = pygame.image.load(path.join(sprite_folder, 'nebula.jpg')).convert()
+background_rect = background.get_rect()
+player_img = pygame.image.load(path.join(sprite_folder, 'Bruiser-T40.png')).convert()
+player_lives = pygame.transform.scale(player_img, (25, 25))
+player_lives.set_colorkey(BLACK)
+bullet_img = pygame.image.load(path.join(sprite_folder, 'laser.png')).convert_alpha()
+enemy_bullet_img = pygame.image.load(path.join(sprite_folder, 'enemylaser.png')).convert_alpha()
+beam_img = pygame.image.load(path.join(sprite_folder, 'tractorbeam.png')).convert_alpha()
+beam_img = pygame.transform.scale(beam_img, (75, 1000))
+
+enemy_images = []
+for i in range (3):
+    filename = 'enemy0{}.png'.format(i)
+    img = pygame.image.load(path.join(sprite_folder, filename)).convert()
+    img.set_colorkey(BLACK)
+    enemy_images.append(img)
+    
+asteroid_images = []
+for i in range(6):
+    filename = 'asteroid0{}.png'.format(i)
+    img = pygame.image.load(path.join(sprite_folder, filename)).convert()
+    img.set_colorkey(BLACK)
+    asteroid_images.append(img)
+
+#explosions
+explosion_anim = {}
+explosion_anim['lg'] = []
+explosion_anim['sm'] = []
+explosion_anim['player'] = []
+for i in range(6):
+    filename = 'explosion0{}.png'.format(i)
+    img = pygame.image.load(path.join(sprite_folder, filename)).convert()
+    img.set_colorkey(BLACK)
+    explosion_anim['player'].append(img)
+    img = pygame.transform.scale(img, (75, 75))
+    explosion_anim['lg'].append(img)
+    img = pygame.transform.scale(img, (32, 32))
+    explosion_anim['sm'].append(img)
+    
+
+# load power ups
+powerup_images = {}
+powerup_images['shield'] = pygame.image.load(path.join(sprite_folder, 'shieldcolorless.png')).convert_alpha()
+powerup_images['shield'] = pygame.transform.scale(powerup_images['shield'], (32, 32))
+powerup_images['weapon'] = pygame.image.load(path.join(sprite_folder, 'powerup.png')).convert_alpha()
+
+
+# Load game sounds
+shooting_sound = pygame.mixer.Sound(path.join(sound_folder, 'Laser Blasts.wav'))
+beam_sound = pygame.mixer.Sound(path.join(sound_folder, 'Laser Cannon.wav'))
+powerup_sound =  pygame.mixer.Sound(path.join(sound_folder, 'Powerup.wav'))
+player_death_sound = pygame.mixer.Sound(path.join(sound_folder, 'Explosion02.wav'))
+expl_sounds = []
+for sound in ['Explosion00.wav', 'Explosion01.wav']:
+    expl_sounds.append(pygame.mixer.Sound(path.join(sound_folder, sound)))
+
+
 
 def main_menu():
     global screen
@@ -81,13 +145,16 @@ def draw_lives(surf, x, y, lives, img):
         img_rect.x = x + 30 * i
         img_rect.y = y
         surf.blit(img, img_rect)
-
-
-
+        
+def new_enemies():
+    element = enemies()
+    sprites.add(element)
+    enemy.add(element)
+    
 def new_asteroid():
-    mob_element = asteroid()
-    sprites.add(mob_element)
-    mobs.add(mob_element)
+    element = asteroid()
+    sprites.add(element)
+    asteroids.add(element)
 
 class explosion(pygame.sprite.Sprite):
     def __init__(self, center, size):
@@ -107,12 +174,12 @@ class explosion(pygame.sprite.Sprite):
             self.frame += 1
             if self.frame == len(explosion_anim[self.size]):
                 self.kill()
+                
             else:
                 center = self.rect.center
                 self.image = explosion_anim[self.size][self.frame]
                 self.rect = self.image.get_rect()
                 self.rect.center = center
-
 
 class Player(pygame.sprite.Sprite):
     def __init__(self):
@@ -120,7 +187,7 @@ class Player(pygame.sprite.Sprite):
         self.image = pygame.transform.scale(player_img, (100, 100))
         self.image.set_colorkey(BLACK)
         self.rect = self.image.get_rect()
-        self.radius = 25
+        self.radius = 35
         self.rect.centerx = WIDTH / 2
         self.rect.bottom = HEIGHT - 10
         self.speedx = 0 
@@ -129,7 +196,6 @@ class Player(pygame.sprite.Sprite):
         self.shoot_delay = 250
         self.lives = 3
         self.power = 1
-        self.hide_timer = pygame.time.get_ticks()
         self.last_shot = pygame.time.get_ticks()
         
     def update(self):
@@ -146,15 +212,16 @@ class Player(pygame.sprite.Sprite):
             self.speedy = -5
         elif keystate[pygame.K_DOWN]:
             self.speedy = 5
+            
         #Fire weapons by holding spacebar
         if keystate[pygame.K_SPACE]:
             self.shoot()
 
         # loop arround
-        if self.rect.right > WIDTH:
-            self.rect.right = 100
-        if self.rect.left < 0:
-            self.rect.left = WIDTH - 100
+        if self.rect.right > WIDTH + 50:
+            self.rect.right = 51
+        if self.rect.left < -50:
+            self.rect.left = WIDTH - 51
         
         #prevent person from passing the top / bottom
         if self.rect.bottom > HEIGHT:
@@ -164,7 +231,15 @@ class Player(pygame.sprite.Sprite):
 
         self.rect.x += self.speedx
         self.rect.y += self.speedy
+        
+        if self.shield == 0:
+            self.rect.centerx = WIDTH / 2
+            self.rect.bottom = HEIGHT - 10
 
+
+    def powerup(self):
+        self.power += 1
+        
     def shoot(self):
         if self.power < 1:
             self.power = 1
@@ -200,9 +275,48 @@ class Player(pygame.sprite.Sprite):
                 shooting_sound.play()
                 beam_sound.play()
 
-    def powerup(self):
-        self.power += 1
-
+class enemies(pygame.sprite.Sprite):
+    def __init__(self):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = random.choice(enemy_images)
+        self.radius = 20
+        self.speedy = 0
+        self.speedx = random.randrange(-3, 3)
+        if (self.speedx == 0):
+            self.speedx = 3
+        self.rect = self.image.get_rect()
+        self.rect.centerx = WIDTH / 2
+        self.rect.top = -100
+        self.shoot_delay = 1000
+        self.last_shot = pygame.time.get_ticks()
+        self.shield = 100
+        
+    def update(self):
+        self.rect.x += self.speedx
+        self.rect.y += self.speedy
+        if pygame.time.get_ticks() - self.last_shot > self.shoot_delay:
+            self.last_shot = pygame.time.get_ticks()
+            self.shoot()
+            self.speedy = 1 - self.speedy
+            
+        if (self.rect.left < -25) or (self.rect.right > WIDTH + 20):
+            #self.speedy = - self.speedy
+            self.speedx = -self.speedx
+        if ((self.rect.top > HEIGHT + 10)):
+            self.image = random.choice(enemy_images)
+            self.speedx = random.randrange(-3, 3)
+            if (self.speedx == 0):
+                self.speedx = 3
+            self.rect = self.image.get_rect()
+            self.rect.centerx = WIDTH / 2
+            self.rect.top = -100
+        
+    def shoot(self):
+            enemy_bullet = enemy_laser(self.rect.centerx, self.rect.bottom)
+            sprites.add(enemy_bullet)
+            enemy_bullets.add(enemy_bullet)
+            shooting_sound.play()
+            
 
 # defines the asteroids
 class asteroid(pygame.sprite.Sprite):
@@ -219,7 +333,7 @@ class asteroid(pygame.sprite.Sprite):
         self.speedx = random.randrange(-3, 3)
         self.rotation = 0
         self.rotation_speed = random.randrange(-8, 8)
-        self.last_update = pygame.time.get_ticks()  ## time when the rotation has to happen
+        self.last_update = pygame.time.get_ticks()
         
     def rotate(self):
         time_now = pygame.time.get_ticks()
@@ -241,11 +355,11 @@ class asteroid(pygame.sprite.Sprite):
             self.kill()
             new_asteroid()
 
-## defines the sprite for powerups
+# defines the sprite for powerups
 class powerup(pygame.sprite.Sprite):
     def __init__(self, center):
         pygame.sprite.Sprite.__init__(self)
-        self.type = random.choice(['shield', 'gun'])
+        self.type = random.choice(['shield', 'weapon'])
         self.image = powerup_images[self.type]
         self.image.set_colorkey(BLACK)
         self.rect = self.image.get_rect()
@@ -274,7 +388,22 @@ class laser(pygame.sprite.Sprite):
         self.rect.y += self.speedy
         if self.rect.bottom < 0:
             self.kill()
+            
+class enemy_laser(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = enemy_bullet_img
+        self.image.set_colorkey(BLACK)
+        self.rect = self.image.get_rect()
+        self.rect.bottom = y 
+        self.rect.centerx = x
+        self.speedy = 10
 
+    def update(self):
+        self.rect.y += self.speedy
+        if self.rect.top > HEIGHT:
+            self.kill()
+            
 class beam(pygame.sprite.Sprite):
     def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
@@ -290,57 +419,10 @@ class beam(pygame.sprite.Sprite):
             self.kill()
 
 
-# Load game images
-background = pygame.image.load(path.join(sprite_folder, 'nebula.jpg')).convert()
-background_rect = background.get_rect()
-player_img = pygame.image.load(path.join(sprite_folder, 'Bruiser-T40.png')).convert()
-player_lives = pygame.transform.scale(player_img, (25, 25))
-player_lives.set_colorkey(BLACK)
-bullet_img = pygame.image.load(path.join(sprite_folder, 'laserRed16.png')).convert()
-beam_img = pygame.image.load(path.join(sprite_folder, 'tractorbeam.png')).convert_alpha()
-beam_img = pygame.transform.scale(beam_img, (75, 1000))
-asteroid_images = []
-
-for i in range(6):
-    filename = 'asteroid0{}.png'.format(i)
-    img = pygame.image.load(path.join(sprite_folder, filename)).convert()
-    img.set_colorkey(BLACK)
-    asteroid_images.append(img)
-
-#explosions
-explosion_anim = {}
-explosion_anim['lg'] = []
-explosion_anim['sm'] = []
-explosion_anim['player'] = []
-for i in range(6):
-    filename = 'explosion0{}.png'.format(i)
-    img = pygame.image.load(path.join(sprite_folder, filename)).convert()
-    img.set_colorkey(BLACK)
-    explosion_anim['player'].append(img)
-    img = pygame.transform.scale(img, (75, 75))
-    explosion_anim['lg'].append(img)
-    img = pygame.transform.scale(img, (32, 32))
-    explosion_anim['sm'].append(img)
-    
-
-# load power ups
-powerup_images = {}
-powerup_images['shield'] = pygame.image.load(path.join(sprite_folder, 'shield.png')).convert()
-powerup_images['shield'] = pygame.transform.scale(powerup_images['shield'], (32, 32))
-powerup_images['gun'] = pygame.image.load(path.join(sprite_folder, 'bolt_gold.png')).convert()
-
-
-# Load game sounds
-shooting_sound = pygame.mixer.Sound(path.join(sound_folder, 'pew.wav'))
-beam_sound = pygame.mixer.Sound(path.join(sound_folder, 'rocket.ogg'))
-expl_sounds = []
-for sound in ['expl3.wav', 'expl6.wav']:
-    expl_sounds.append(pygame.mixer.Sound(path.join(sound_folder, sound)))
-
-player_die_sound = pygame.mixer.Sound(path.join(sound_folder, 'rumble1.ogg'))
 
 running = True
 menu_display = True
+
 while running:
     if menu_display:
         main_menu()
@@ -355,12 +437,15 @@ while running:
         player = Player()
         sprites.add(player)
 
-        mobs = pygame.sprite.Group()
-        for i in range(2):
+        asteroids = pygame.sprite.Group()
+        for i in range(5):
             new_asteroid()
+        enemy = enemies()
+        sprites.add(enemy)
+        enemy_bullets = pygame.sprite.Group()
         bullets = pygame.sprite.Group()
         powerups = pygame.sprite.Group()
-
+        
         score = 0
         
     clock.tick(FPS)     
@@ -368,7 +453,7 @@ while running:
         if event.type == pygame.QUIT:
             running = False
              
-        ## Press ESC to exit game
+        #Press ESC to return to main menu
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 menu_display = True
@@ -378,22 +463,32 @@ while running:
 
 
     # check if a bullet hit a asteroid
-    hits = pygame.sprite.groupcollide(mobs, bullets, True, True)
-    # now as we delete the asteroid element when we hit one with a bullet, we need to respawn them again
-    # as there will be no mob_elements left out 
+    hits = pygame.sprite.groupcollide(asteroids, bullets, True, True)
     for hit in hits:
         score += hit.radius
         random.choice(expl_sounds).play()
         expl = explosion(hit.rect.center, 'lg')
         sprites.add(expl)
         if random.random() > 0.9:
-            pow = powerup(hit.rect.center)
-            sprites.add(pow)
-            powerups.add(pow)
+            power = powerup(hit.rect.center)
+            sprites.add(power)
+            powerups.add(power)
+        new_asteroid()
+        
+    # check if a enemy bullet hit a asteroid same code doesnt add score
+    hits = pygame.sprite.groupcollide(asteroids, enemy_bullets, True, True)
+    for hit in hits:
+        random.choice(expl_sounds).play()
+        expl = explosion(hit.rect.center, 'lg')
+        sprites.add(expl)
+        if random.random() > 0.9:
+            power = powerup(hit.rect.center)
+            sprites.add(power)
+            powerups.add(power)
         new_asteroid()
 
     # check if the player collides with the asteroid
-    hits = pygame.sprite.spritecollide(player, mobs, True, pygame.sprite.collide_circle)
+    hits = pygame.sprite.spritecollide(player, asteroids, True, pygame.sprite.collide_circle)
     for hit in hits:
         player.shield -= hit.radius
         player.power -= 1
@@ -401,13 +496,60 @@ while running:
         sprites.add(expl)
         new_asteroid()
         if player.shield <= 0: 
-            player_die_sound.play()
+            player_death_sound.play()
             death_explosion = explosion(player.rect.center, 'player')
             sprites.add(death_explosion)
-            player.hide()
             player.lives -= 1
             player.shield = 100
-
+            
+    """ i havnt figured out how to implement bounding boxes yet
+    # check if the player collides with the enemy
+    hits = pygame.sprite.spritecollide(enemy, player, True, pygame.sprite.collide_circle)
+    for hit in hits:
+        player.power -= 1
+        #player_death_sound.play()
+        #death_explosion = explosion(enemy.rect.center, 'player')
+        player_death_sound.play()
+        death_explosion = explosion(player.rect.center, 'player')
+        sprites.add(death_explosion)
+        player.lives -= 1
+        player.shield = 100
+        player.rect.bottom = HEIGHT - 10
+        """
+    # check if the player collides with the enemy bullets
+    hits = pygame.sprite.spritecollide(player, enemy_bullets, True, pygame.sprite.collide_circle)
+    for hit in hits:
+        player.shield -= 20
+        player.power -= 1
+        expl = explosion(hit.rect.center, 'sm')
+        sprites.add(expl)
+        if player.shield <= 0: 
+            player_death_sound.play()
+            death_explosion = explosion(player.rect.center, 'player')
+            sprites.add(death_explosion)
+            player.lives -= 1
+            player.shield = 100
+            
+    # check if the player collides with the enemy bullets
+    hits = pygame.sprite.spritecollide(enemy, bullets, True, pygame.sprite.collide_circle)
+    for hit in hits:
+        enemy.shield -= 20
+        expl = explosion(hit.rect.center, 'sm')
+        sprites.add(expl)
+        if enemy.shield <= 0: 
+            score += 1000
+            player_death_sound.play()
+            death_explosion = explosion(enemy.rect.center, 'player')
+            sprites.add(death_explosion)
+            enemy.shield = 100
+            enemy.image = random.choice(enemy_images)
+            enemy.speedx = random.randrange(-3, 3)
+            if (enemy.speedx == 0):
+                enemy.speedx = 3
+            enemy.rect = enemy.image.get_rect()
+            enemy.rect.centerx = WIDTH / 2
+            enemy.rect.top = -100
+            
     # if the player hit a power up
     hits = pygame.sprite.spritecollide(player, powerups, True)
     for hit in hits:
@@ -415,8 +557,10 @@ while running:
             player.shield += 25
             if player.shield >= 100:
                 player.shield = 100
-        if hit.type == 'gun':
+            powerup_sound.play()    
+        if hit.type == 'weapon':
             player.powerup()
+            powerup_sound.play()
 
     # if player died
     if player.lives == 0 and not death_explosion.alive():
@@ -427,11 +571,13 @@ while running:
     screen.blit(background, background_rect)
 
     sprites.draw(screen)
-    draw_text(screen, str(score), 18, WIDTH / 2, 10)     ## 10px down from the screen
-    draw_shield_bar(screen, 5, 5, player.shield)
+    draw_text(screen, "SCORE: " + str(score), 18, WIDTH / 2, 10)
+    draw_shield_bar(screen, 10, 30, player.shield)
+    draw_text(screen, "HEALTH: ", 18, 50, 10)
 
     # Draw lives
-    draw_lives(screen, WIDTH - 100, 5, player.lives, player_lives)
+    draw_lives(screen, WIDTH - 100, 30, player.lives, player_lives)
+    draw_text(screen, "LIVES: ", 18, WIDTH - 50, 10)
     pygame.display.flip()       
 
 pygame.quit()
