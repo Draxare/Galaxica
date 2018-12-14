@@ -1,8 +1,8 @@
-#Galaxica
+# Galaxica
 
 an attempt at an 8 bit retro game using Pygame and python.
 
-##Features
+## Features
 * Health bar for the space ship displayed in upper left corner
 * Score board shown in middle
 * Power ups 
@@ -23,6 +23,6 @@ an attempt at an 8 bit retro game using Pygame and python.
 | Return to Menu | <kbd>esc</kbd> |
 
 
-####To play game (python version doesnt matter)
+#### To play game (python version doesnt matter)
 
 `sudo apt-get install python-pygame`
