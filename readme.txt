@@ -8,12 +8,15 @@ Features
 	Power ups 
 		shield: replenishes some of your health 
 		weapon power: (little glowing red ball) upgrades your weapon caution you lose one upgade every hit you take
+	The screen wraps from left to right
 	Hand done sprites for things such as player and enemies, sprites sheets included for ones not done by hand
 	Sounds are royalty free and taken online
 
   
 Move Left: Left Arrow
-Move right: Right Arrow
+Move Right: Right Arrow
+Move Up: Right Arrow
+Move Down: Down Arrow
 Fire lasers: Spacebar
 Return to menu: Esc
 
